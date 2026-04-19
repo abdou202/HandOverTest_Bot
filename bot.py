@@ -132,7 +132,6 @@ def ask_remarks(message):
     bot.register_next_step_handler(message, finish)
 
 # -------- FINISH --------
-
 def finish(message):
     if message.text == "❌ Annuler":
         cancel(message)
@@ -143,9 +142,13 @@ def finish(message):
     )
 
     today_full = datetime.now().strftime("%Y-%m-%d %H:%M")
-    username = message.from_user.first_name
+    username = f"{message.from_user.first_name or ''} {message.from_user.last_name or ''}"
 
-    data = user_data[message.chat.id]
+    data = user_data.get(message.chat.id)
+    if not data:
+        bot.send_message(message.chat.id, "❌ لا توجد بيانات")
+        main_menu(message.chat.id)
+        return
 
     report = f"""
 📢 *HANDOVER REPORT*
@@ -179,29 +182,33 @@ def finish(message):
     bot.send_message(message.chat.id, report, parse_mode="Markdown")
     bot.send_message(message.chat.id, "❓ هل تريد الإرسال أو التعديل؟", reply_markup=markup)
 
+# -------- CONFIRM --------
 @bot.message_handler(func=lambda m: m.text == "✅ Confirm")
 def confirm(message):
-    report = user_data.get(message.chat.id, {}).get('report')
-
-    if not report:
+    data = user_data.get(message.chat.id)
+    if not data or 'report' not in data:
         bot.send_message(message.chat.id, "❌ لا يوجد تقرير")
         return
 
     try:
-        bot.send_message(CHANNEL_ID, report, parse_mode="Markdown")
-        bot.send_message(message.chat.id, "✅ تم إرسال الـ Hand Over")
-    except:
-        bot.send_message(message.chat.id, "⚠️ فشل النشر في القناة")
+        bot.send_message(CHANNEL_ID, data['report'], parse_mode="Markdown")
+        bot.send_message(message.chat.id, "✅ تم إرسال الـ Hand Over", reply_markup=types.ReplyKeyboardRemove())
+    except Exception as e:
+        bot.send_message(message.chat.id, f"⚠️ خطأ: {e}")
 
     done_today[message.chat.id] = datetime.now().strftime("%Y-%m-%d")
+    user_data.pop(message.chat.id, None)
 
     main_menu(message.chat.id)
 
+# -------- CANCEL CONFIRM --------
 @bot.message_handler(func=lambda m: m.text == "❌ Cancel")
 def cancel_confirm(message):
+    user_data.pop(message.chat.id, None)
     bot.send_message(message.chat.id, "❌ تم إلغاء العملية")
     main_menu(message.chat.id)
 
+# -------- EDIT MENU --------
 @bot.message_handler(func=lambda m: m.text == "✏️ Edit")
 def edit_menu(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -215,6 +222,12 @@ def edit_menu(message):
 
     bot.send_message(message.chat.id, "✏️ ماذا تريد تعديله؟", reply_markup=markup)
 
+# -------- BACK --------
+@bot.message_handler(func=lambda m: m.text == "🔙 Back")
+def back(message):
+    back_to_confirm(message)
+
+# -------- EDIT FIELDS --------
 @bot.message_handler(func=lambda m: m.text == "⚙️ Equipment")
 def edit_equipment(message):
     bot.send_message(message.chat.id, "✏️ اكتب Equipment الجديد:")
@@ -223,7 +236,6 @@ def edit_equipment(message):
 def save_equipment(message):
     user_data[message.chat.id]['equipment'] = message.text
     back_to_confirm(message)
-
 
 @bot.message_handler(func=lambda m: m.text == "⚠️ Issues")
 def edit_issues(message):
@@ -234,7 +246,6 @@ def save_issues(message):
     user_data[message.chat.id]['issues'] = message.text
     back_to_confirm(message)
 
-
 @bot.message_handler(func=lambda m: m.text == "🛠️ Maintenance")
 def edit_maintenance(message):
     bot.send_message(message.chat.id, "✏️ اكتب Maintenance الجديد:")
@@ -243,7 +254,6 @@ def edit_maintenance(message):
 def save_maintenance(message):
     user_data[message.chat.id]['maintenance'] = message.text
     back_to_confirm(message)
-
 
 @bot.message_handler(func=lambda m: m.text == "📊 Remarks")
 def edit_remarks(message):
@@ -254,11 +264,16 @@ def save_remarks(message):
     user_data[message.chat.id]['remarks'] = message.text
     back_to_confirm(message)
 
+# -------- BACK TO CONFIRM --------
 def back_to_confirm(message):
-    data = user_data[message.chat.id]
+    data = user_data.get(message.chat.id)
+    if not data:
+        bot.send_message(message.chat.id, "❌ لا توجد بيانات")
+        main_menu(message.chat.id)
+        return
 
     today_full = datetime.now().strftime("%Y-%m-%d %H:%M")
-    username = message.from_user.first_name
+    username = f"{message.from_user.first_name or ''} {message.from_user.last_name or ''}"
 
     report = f"""
 📢 *HANDOVER REPORT*
@@ -292,8 +307,5 @@ def back_to_confirm(message):
     bot.send_message(message.chat.id, report, parse_mode="Markdown")
     bot.send_message(message.chat.id, "🔁 تم التحديث، تأكد:", reply_markup=markup)
 
-
 # -------- RUN --------
 bot.infinity_polling()
-
-
