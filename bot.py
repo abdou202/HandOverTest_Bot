@@ -6,43 +6,63 @@ TOKEN = "8745775678:AAFF6aNr9jTMAyorKW1X3pqVpTkTD7AV7uc"
 
 bot = telebot.TeleBot(TOKEN)
 
-# 🚀 START COMMAND
+user_data = {}
+
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, "Welcome! 👋\nUse /menu to see options.")
+    bot.send_message(message.chat.id, "🔄 Shift ? (Day/Night)")
+    bot.register_next_step_handler(message, get_shift)
 
-# ❓ HELP COMMAND
-@bot.message_handler(commands=['help'])
-def help_command(message):
-    bot.reply_to(message, "I am a simple bot 🤖\nCommands:\n/start\n/help\n/menu")
+def get_shift(message):
+    user_data[message.chat.id] = {}
+    user_data[message.chat.id]['shift'] = message.text
+    
+    bot.send_message(message.chat.id, "⚙️ Equipment status ?")
+    bot.register_next_step_handler(message, get_equipment)
 
-# 🔘 MENU WITH BUTTONS
-@bot.message_handler(commands=['menu'])
-def menu(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn1 = types.KeyboardButton("Say Hello 👋")
-    btn2 = types.KeyboardButton("About ℹ️")
-    markup.add(btn1, btn2)
+def get_equipment(message):
+    user_data[message.chat.id]['equipment'] = message.text
+    
+    bot.send_message(message.chat.id, "⚠️ Issues ?")
+    bot.register_next_step_handler(message, get_issues)
 
-    bot.send_message(message.chat.id, "Choose an option:", reply_markup=markup)
+def get_issues(message):
+    user_data[message.chat.id]['issues'] = message.text
+    
+    bot.send_message(message.chat.id, "🛠️ Maintenance ?")
+    bot.register_next_step_handler(message, get_maintenance)
 
-# 📩 HANDLE BUTTON CLICKS & TEXT
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    text = message.text.lower()
+def get_maintenance(message):
+    user_data[message.chat.id]['maintenance'] = message.text
+    
+    bot.send_message(message.chat.id, "📊 Remarks ?")
+    bot.register_next_step_handler(message, finish)
 
-    if text == "say hello 👋":
-        bot.reply_to(message, "Hello there 😄")
+def finish(message):
+    user_data[message.chat.id]['remarks'] = message.text
+    
+    data = user_data[message.chat.id]
+    
+    report = f"""
+🔄 SHIFT: {data['shift']}
 
-    elif text == "about ℹ️":
-        bot.reply_to(message, "I'm a TeleBot example built with Python!")
+⚙️ Equipment:
+{data['equipment']}
 
-    elif "hi" in text:
-        bot.reply_to(message, "Hey! How are you? 😊")
+⚠️ Issues:
+{data['issues']}
 
-    else:
-        bot.reply_to(message, "I don't understand 🤔\nTry /menu")
+🛠️ Maintenance:
+{data['maintenance']}
 
-# ▶️ RUN BOT
-print("Bot is running...")
+📊 Remarks:
+{data['remarks']}
+"""
+    
+    bot.send_message(message.chat.id, "✅ Handover saved!")
+    
+    # هنا تحط ID تاع القناة
+    CHANNEL_ID = "@your_channel_name"
+    bot.send_message(CHANNEL_ID, report)
+
 bot.infinity_polling()
