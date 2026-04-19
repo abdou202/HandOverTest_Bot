@@ -62,7 +62,7 @@ def finish(message):
     bot.send_message(message.chat.id, "✅ Handover saved!")
     
     # هنا تحط ID تاع القناة
-    CHANNEL_ID = "@your_channel_name"
+    CHANNEL_ID = "@handover_test"
     bot.send_message(CHANNEL_ID, report)
 
 bot.infinity_polling()
