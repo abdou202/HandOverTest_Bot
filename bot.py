@@ -9,9 +9,6 @@ TOKEN = "8745775678:AAFF6aNr9jTMAyorKW1X3pqVpTkTD7AV7uc"
     # هنا تحط ID تاع القناة
 CHANNEL_ID = "@handover_test"
 
-TOKEN = "PUT_YOUR_TOKEN_HERE"
-CHANNEL_ID = "@your_channel_name"  # ولا -100xxxxxxxxxx
-
 bot = telebot.TeleBot(TOKEN)
 
 user_data = {}
