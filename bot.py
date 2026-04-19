@@ -17,7 +17,7 @@ done_today = {}
 # -------- MENU --------
 def main_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🚀 Start Handover", "❌ Annuler")
+    markup.add("🚀 Start Handover")
     bot.send_message(chat_id, "📋 اختر:", reply_markup=markup)
 
 # -------- START --------
@@ -26,7 +26,12 @@ def start(message):
     text = """
 👋 مرحبا بك في نظام Hand Over
 
-📌 اضغط Start باش تبدا العملية
+📌 الخطوات:
+1- تختار Shift
+2- تجاوب على الأسئلة
+3- البوت ينشر التقرير في القناة
+
+اضغط على الزر للبدء 👇
 """
     bot.send_message(message.chat.id, text)
     main_menu(message.chat.id)
@@ -127,6 +132,7 @@ def ask_remarks(message):
     bot.register_next_step_handler(message, finish)
 
 # -------- FINISH --------
+
 def finish(message):
     if message.text == "❌ Annuler":
         cancel(message)
@@ -165,17 +171,127 @@ def finish(message):
 ━━━━━━━━━━━━━━━
 """
 
-    bot.send_message(message.chat.id, "✅ تم تسجيل الـ Hand Over", reply_markup=types.ReplyKeyboardRemove())
+    user_data[message.chat.id]['report'] = report
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("✅ Confirm", "✏️ Edit", "❌ Cancel")
+
+    bot.send_message(message.chat.id, report, parse_mode="Markdown")
+    bot.send_message(message.chat.id, "❓ هل تريد الإرسال أو التعديل؟", reply_markup=markup)
+
+@bot.message_handler(func=lambda m: m.text == "✅ Confirm")
+def confirm(message):
+    report = user_data.get(message.chat.id, {}).get('report')
+
+    if not report:
+        bot.send_message(message.chat.id, "❌ لا يوجد تقرير")
+        return
 
     try:
         bot.send_message(CHANNEL_ID, report, parse_mode="Markdown")
+        bot.send_message(message.chat.id, "✅ تم إرسال الـ Hand Over")
     except:
-        bot.send_message(message.chat.id, "⚠️ لم يتم النشر في القناة (تأكد من الصلاحيات)")
+        bot.send_message(message.chat.id, "⚠️ فشل النشر في القناة")
 
     done_today[message.chat.id] = datetime.now().strftime("%Y-%m-%d")
 
-    # 👇 يرجع للـ menu
     main_menu(message.chat.id)
+
+@bot.message_handler(func=lambda m: m.text == "❌ Cancel")
+def cancel_confirm(message):
+    bot.send_message(message.chat.id, "❌ تم إلغاء العملية")
+    main_menu(message.chat.id)
+
+@bot.message_handler(func=lambda m: m.text == "✏️ Edit")
+def edit_menu(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(
+        "⚙️ Equipment",
+        "⚠️ Issues",
+        "🛠️ Maintenance",
+        "📊 Remarks",
+        "🔙 Back"
+    )
+
+    bot.send_message(message.chat.id, "✏️ ماذا تريد تعديله؟", reply_markup=markup)
+
+@bot.message_handler(func=lambda m: m.text == "⚙️ Equipment")
+def edit_equipment(message):
+    bot.send_message(message.chat.id, "✏️ اكتب Equipment الجديد:")
+    bot.register_next_step_handler(message, save_equipment)
+
+def save_equipment(message):
+    user_data[message.chat.id]['equipment'] = message.text
+    back_to_confirm(message)
+
+
+@bot.message_handler(func=lambda m: m.text == "⚠️ Issues")
+def edit_issues(message):
+    bot.send_message(message.chat.id, "✏️ اكتب Issues الجديد:")
+    bot.register_next_step_handler(message, save_issues)
+
+def save_issues(message):
+    user_data[message.chat.id]['issues'] = message.text
+    back_to_confirm(message)
+
+
+@bot.message_handler(func=lambda m: m.text == "🛠️ Maintenance")
+def edit_maintenance(message):
+    bot.send_message(message.chat.id, "✏️ اكتب Maintenance الجديد:")
+    bot.register_next_step_handler(message, save_maintenance)
+
+def save_maintenance(message):
+    user_data[message.chat.id]['maintenance'] = message.text
+    back_to_confirm(message)
+
+
+@bot.message_handler(func=lambda m: m.text == "📊 Remarks")
+def edit_remarks(message):
+    bot.send_message(message.chat.id, "✏️ اكتب Remarks الجديد:")
+    bot.register_next_step_handler(message, save_remarks)
+
+def save_remarks(message):
+    user_data[message.chat.id]['remarks'] = message.text
+    back_to_confirm(message)
+
+def back_to_confirm(message):
+    data = user_data[message.chat.id]
+
+    today_full = datetime.now().strftime("%Y-%m-%d %H:%M")
+    username = message.from_user.first_name
+
+    report = f"""
+📢 *HANDOVER REPORT*
+
+👤 Operator: {username}
+📅 Date: {today_full}
+🔄 Shift: {data['shift']}
+
+━━━━━━━━━━━━━━━
+
+⚙️ *Equipment Status:*
+{data['equipment']}
+
+⚠️ *Issues:*
+{data['issues']}
+
+🛠️ *Maintenance:*
+{data['maintenance']}
+
+📊 *Remarks:*
+{data['remarks']}
+
+━━━━━━━━━━━━━━━
+"""
+
+    user_data[message.chat.id]['report'] = report
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("✅ Confirm", "✏️ Edit", "❌ Cancel")
+
+    bot.send_message(message.chat.id, report, parse_mode="Markdown")
+    bot.send_message(message.chat.id, "🔁 تم التحديث، تأكد:", reply_markup=markup)
+
 
 # -------- RUN --------
 bot.infinity_polling()
