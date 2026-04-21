@@ -9,6 +9,19 @@ TOKEN = "8745775678:AAFF6aNr9jTMAyorKW1X3pqVpTkTD7AV7uc"
     # هنا تحط ID تاع القناة
 CHANNEL_ID = "@handover_test"
 
+AREAS = [
+    "OT1 / Manifold compresseur d’air",
+    "OT2 / Slug catcher",
+    "AGC’s",
+    "BGC’s",
+    "Dehydration",
+    "IGC’s / FG / Ballon de torche",
+    "RGC’s / API",
+    "NGL",
+    "PWT / RKF / Puits Source",
+    "Export"
+]
+
 bot = telebot.TeleBot(TOKEN)
 
 user_data = {}
@@ -54,6 +67,19 @@ def handover_start(message):
         return
 
     user_data[message.chat.id] = {}
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+
+    for area in AREAS:
+        markup.add(area)
+
+    markup.add("❌ Annuler")
+
+    bot.send_message(message.chat.id, "📍 اختر Area:", reply_markup=markup)
+
+@bot.message_handler(func=lambda m: m.text in AREAS)
+def get_area(message):
+    user_data[message.chat.id]['area'] = message.text
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🌞 Day", "🌙 Night", "❌ Annuler")
@@ -155,6 +181,7 @@ def finish(message):
 
 👤 Operator: {username}
 📅 Date: {today_full}
+📍 Area: {data['area']}
 🔄 Shift: {data['shift']}
 
 ━━━━━━━━━━━━━━━
@@ -280,6 +307,7 @@ def back_to_confirm(message):
 
 👤 Operator: {username}
 📅 Date: {today_full}
+📍 Area: {data['area']}
 🔄 Shift: {data['shift']}
 
 ━━━━━━━━━━━━━━━
