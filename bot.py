@@ -3,337 +3,219 @@ import telebot
 from telebot import types
 from datetime import datetime
 
-# 🔑 Replace with your bot token from BotFather
-TOKEN = "8745775678:AAFF6aNr9jTMAyorKW1X3pqVpTkTD7AV7uc"
-    
-    # هنا تحط ID تاع القناة
-CHANNEL_ID = "@handover_test"
+# ============================================================
+#  🔧 CONFIG — بدّل هنا فقط
+# ============================================================
+BOT_TOKEN   = "8745775678:AAFF6aNr9jTMAyorKW1X3pqVpTkTD7AV7uc"          # توكن البوت تاعك
+CHANNEL_ID  = "@handover_test"   # اسم القناة تاعك 
+# ============================================================
 
-AREAS = [
-    "OT1 / Manifold compresseur d’air",
-    "OT2 / Slug catcher",
-    "AGC’s",
-    "BGC’s",
-    "Dehydration",
-    "IGC’s / FG / Ballon de torche",
-    "RGC’s / API",
-    "NGL",
-    "PWT / RKF / Puits Source",
-    "Export"
+bot = telebot.TeleBot(BOT_TOKEN)
+
+# ---- تخزين مؤقت للبيانات (RAM) ----
+sessions = {}
+
+WARDIYAS = ["🌅 Day Shift  (07h–19h)", "🌙 Night Shift  (19h–07h)"]
+ZONES    = [
+    "⚙️ OT1 / Manifold compresseur d'air",
+    "⚙️ OT2 / Slug catcher",
+    "🏭 AGC's",
+    "🏭 BGC's",
+    "💧 Dehydration",
+    "🔥 IGC's / FG / Ballon de torche",
+    "🏭 RGC's / API",
+    "🧪 NGL",
+    "💧 PWT / RKF / Puits Source",
+    "🚀 Export",
 ]
+ETATS    = ["✅ Normal — Aucune anomalie", "⚠️ Anomalie mineure", "🔴 Anomalie majeure / Arrêt"]
+INTERVENTIONS = ["✅ Aucune intervention", "🔧 Maintenance préventive", "🚨 Intervention d'urgence", "🔩 Remplacement équipement"]
 
-bot = telebot.TeleBot(TOKEN)
-
-user_data = {}
-done_today = {}
-
-# -------- MENU --------
-def main_menu(chat_id):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🚀 Start Handover")
-    bot.send_message(chat_id, "📋 اختر:", reply_markup=markup)
-
-# -------- START --------
+# ══════════════════════════════════════════════════════════════
+#  /start  —  رسالة الترحيب
+# ══════════════════════════════════════════════════════════════
 @bot.message_handler(commands=['start'])
 def start(message):
-    text = """
-👋 مرحبا بك في نظام Hand Over
+    name = message.from_user.first_name or "Operator"
+    text = (
+        f"👋 *Bienvenue {name} !*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🤖 Je suis le *Bot Hand Over* du Groupement Berkine.\n\n"
+        f"📋 *Comment ça marche ?*\n"
+        f"  1️⃣  Tape /handover pour démarrer\n"
+        f"  2️⃣  Réponds aux questions via les boutons\n"
+        f"  3️⃣  Le rapport est publié automatiquement dans la chaîne\n\n"
+        f"📌 *Commandes disponibles :*\n"
+        f"  /handover — Créer un Hand Over\n"
+        f"  /annuler  — Annuler en cours de route\n"
+        f"  /aide     — Afficher ce message\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ Prêt ? Lance */handover* !"
+    )
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
-📌 الخطوات:
-1- تختار Shift
-2- تجاوب على الأسئلة
-3- البوت ينشر التقرير في القناة
 
-اضغط على الزر للبدء 👇
-"""
-    bot.send_message(message.chat.id, text)
-    main_menu(message.chat.id)
+@bot.message_handler(commands=['aide'])
+def aide(message):
+    start(message)
 
-# -------- CANCEL --------
-@bot.message_handler(func=lambda m: m.text == "❌ Annuler")
-def cancel(message):
-    user_data.pop(message.chat.id, None)
-    bot.send_message(message.chat.id, "❌ تم إلغاء العملية")
-    main_menu(message.chat.id)
 
-# -------- START HANDOVER --------
-@bot.message_handler(func=lambda m: m.text == "🚀 Start Handover")
+# ══════════════════════════════════════════════════════════════
+#  /annuler
+# ══════════════════════════════════════════════════════════════
+@bot.message_handler(commands=['annuler'])
+def annuler(message):
+    uid = message.from_user.id
+    if uid in sessions:
+        del sessions[uid]
+    bot.send_message(message.chat.id, "❌ Hand Over *annulé*.\nTape /handover pour recommencer.", parse_mode="Markdown")
+
+
+# ══════════════════════════════════════════════════════════════
+#  ÉTAPE 1 — /handover  →  choix de la wardiya
+# ══════════════════════════════════════════════════════════════
+@bot.message_handler(commands=['handover'])
 def handover_start(message):
-    today = datetime.now().strftime("%Y-%m-%d")
+    uid = message.from_user.id
+    sessions[uid] = {
+        "nom": message.from_user.full_name,
+        "date": datetime.now().strftime("%d/%m/%Y  %H:%M"),
+        "wardiya": "", "zone": "", "etat": "",
+        "intervention": "", "remarque": ""
+    }
 
-    if message.chat.id in done_today and done_today[message.chat.id] == today:
-        bot.send_message(message.chat.id, "❌ راك درت Hand Over اليوم")
-        main_menu(message.chat.id)
-        return
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    for w in WARDIYAS:
+        markup.add(types.KeyboardButton(w))
 
-    user_data[message.chat.id] = {}
-
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-
-    for area in AREAS:
-        markup.add(area)
-
-    markup.add("❌ Annuler")
-
-    bot.send_message(message.chat.id, "📍 اختر Area:", reply_markup=markup)
-
-@bot.message_handler(func=lambda m: m.text in AREAS)
-def get_area(message):
-    user_data[message.chat.id]['area'] = message.text
-
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🌞 Day", "🌙 Night", "❌ Annuler")
-
-    bot.send_message(message.chat.id, "🔄 اختر Shift:", reply_markup=markup)
-
-# -------- SHIFT --------
-@bot.message_handler(func=lambda m: m.text in ["🌞 Day", "🌙 Night"])
-def get_shift(message):
-    user_data[message.chat.id]['shift'] = message.text
-    ask_equipment(message)
-
-# -------- EQUIPMENT --------
-def ask_equipment(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🚫 Nothing to report", "❌ Annuler")
-
-    bot.send_message(message.chat.id, "⚙️ حالة المعدات ؟", reply_markup=markup)
-    bot.register_next_step_handler(message, get_equipment)
-
-def get_equipment(message):
-    if message.text == "❌ Annuler":
-        cancel(message)
-        return
-
-    user_data[message.chat.id]['equipment'] = (
-        "Nothing to report" if message.text == "🚫 Nothing to report" else message.text
+    bot.send_message(
+        message.chat.id,
+        "🕐 *Étape 1 / 5* — Quelle est ta *wardiya* ?",
+        reply_markup=markup,
+        parse_mode="Markdown"
     )
+    bot.register_next_step_handler(message, step_zone)
 
-    ask_issues(message)
 
-# -------- ISSUES --------
-def ask_issues(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🚫 Nothing to report", "❌ Annuler")
+# ══════════════════════════════════════════════════════════════
+#  ÉTAPE 2 — Zone
+# ══════════════════════════════════════════════════════════════
+def step_zone(message):
+    uid = message.from_user.id
+    sessions[uid]["wardiya"] = message.text
 
-    bot.send_message(message.chat.id, "⚠️ المشاكل (Issues) ؟", reply_markup=markup)
-    bot.register_next_step_handler(message, get_issues)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    for z in ZONES:
+        markup.add(types.KeyboardButton(z))
 
-def get_issues(message):
-    if message.text == "❌ Annuler":
-        cancel(message)
-        return
-
-    user_data[message.chat.id]['issues'] = (
-        "Nothing to report" if message.text == "🚫 Nothing to report" else message.text
+    bot.send_message(
+        message.chat.id,
+        "📍 *Étape 2 / 5* — What is your *Area* ?",
+        reply_markup=markup,
+        parse_mode="Markdown"
     )
+    bot.register_next_step_handler(message, step_etat)
 
-    ask_maintenance(message)
 
-# -------- MAINTENANCE --------
-def ask_maintenance(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🚫 Nothing to report", "❌ Annuler")
+# ══════════════════════════════════════════════════════════════
+#  ÉTAPE 3 — État des installations
+# ══════════════════════════════════════════════════════════════
+def step_etat(message):
+    uid = message.from_user.id
+    sessions[uid]["zone"] = message.text
 
-    bot.send_message(message.chat.id, "🛠️ الصيانة (Maintenance) ؟", reply_markup=markup)
-    bot.register_next_step_handler(message, get_maintenance)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    for e in ETATS:
+        markup.add(types.KeyboardButton(e))
 
-def get_maintenance(message):
-    if message.text == "❌ Annuler":
-        cancel(message)
-        return
-
-    user_data[message.chat.id]['maintenance'] = (
-        "Nothing to report" if message.text == "🚫 Nothing to report" else message.text
+    bot.send_message(
+        message.chat.id,
+        "🏭 *Étape 3 / 5* — *État des installations* ?",
+        reply_markup=markup,
+        parse_mode="Markdown"
     )
+    bot.register_next_step_handler(message, step_intervention)
 
-    ask_remarks(message)
 
-# -------- REMARKS --------
-def ask_remarks(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🚫 Nothing to report", "❌ Annuler")
+# ══════════════════════════════════════════════════════════════
+#  ÉTAPE 4 — Interventions
+# ══════════════════════════════════════════════════════════════
+def step_intervention(message):
+    uid = message.from_user.id
+    sessions[uid]["etat"] = message.text
 
-    bot.send_message(message.chat.id, "📊 ملاحظات إضافية ؟", reply_markup=markup)
-    bot.register_next_step_handler(message, finish)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    for i in INTERVENTIONS:
+        markup.add(types.KeyboardButton(i))
 
-# -------- FINISH --------
-def finish(message):
-    if message.text == "❌ Annuler":
-        cancel(message)
-        return
-
-    user_data[message.chat.id]['remarks'] = (
-        "Nothing to report" if message.text == "🚫 Nothing to report" else message.text
+    bot.send_message(
+        message.chat.id,
+        "🔧 *Étape 4 / 5* — *Interventions effectuées* ?",
+        reply_markup=markup,
+        parse_mode="Markdown"
     )
+    bot.register_next_step_handler(message, step_remarque)
 
-    today_full = datetime.now().strftime("%Y-%m-%d %H:%M")
-    username = f"{message.from_user.first_name or ''} {message.from_user.last_name or ''}"
 
-    data = user_data.get(message.chat.id)
-    if not data:
-        bot.send_message(message.chat.id, "❌ لا توجد بيانات")
-        main_menu(message.chat.id)
-        return
+# ══════════════════════════════════════════════════════════════
+#  ÉTAPE 5 — Remarques libres
+# ══════════════════════════════════════════════════════════════
+def step_remarque(message):
+    uid = message.from_user.id
+    sessions[uid]["intervention"] = message.text
 
-    report = f"""
-📢 *HANDOVER REPORT*
+    markup = types.ReplyKeyboardRemove()
+    bot.send_message(
+        message.chat.id,
+        "📝 *Étape 5 / 5* — *Remarques supplémentaires ?*\n_(Écris librement ou tape `—` si aucune)_",
+        reply_markup=markup,
+        parse_mode="Markdown"
+    )
+    bot.register_next_step_handler(message, step_publish)
 
-👤 Operator: {username}
-📅 Date: {today_full}
-📍 Area: {data['area']}
-🔄 Shift: {data['shift']}
 
-━━━━━━━━━━━━━━━
+# ══════════════════════════════════════════════════════════════
+#  PUBLICATION dans la chaîne
+# ══════════════════════════════════════════════════════════════
+def step_publish(message):
+    uid = message.from_user.id
+    s = sessions[uid]
+    s["remarque"] = message.text
 
-⚙️ *Equipment Status:*
-{data['equipment']}
-
-⚠️ *Issues:*
-{data['issues']}
-
-🛠️ *Maintenance:*
-{data['maintenance']}
-
-📊 *Remarks:*
-{data['remarks']}
-
-━━━━━━━━━━━━━━━
-"""
-
-    user_data[message.chat.id]['report'] = report
-
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("✅ Confirm", "✏️ Edit", "❌ Cancel")
-
-    bot.send_message(message.chat.id, report, parse_mode="Markdown")
-    bot.send_message(message.chat.id, "❓ هل تريد الإرسال أو التعديل؟", reply_markup=markup)
-
-# -------- CONFIRM --------
-@bot.message_handler(func=lambda m: m.text == "✅ Confirm")
-def confirm(message):
-    data = user_data.get(message.chat.id)
-    if not data or 'report' not in data:
-        bot.send_message(message.chat.id, "❌ لا يوجد تقرير")
-        return
+    rapport = (
+        f"📋 *HAND OVER — GROUPEMENT BERKINE*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 *Operator :*  {s['nom']}\n"
+        f"📅 *Date / Heure :*  {s['date']}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🕐 *Shift :*  {s['wardiya']}\n"
+        f"📍 *Area :*  {s['zone']}\n"
+        f"🏭 *État installations :*  {s['etat']}\n"
+        f"🔧 *Interventions :*  {s['intervention']}\n"
+        f"📝 *Remarques :*  {s['remarque']}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ _Rapport soumis via Bot Hand Over_"
+    )
 
     try:
-        bot.send_message(CHANNEL_ID, data['report'], parse_mode="Markdown")
-        bot.send_message(message.chat.id, "✅ تم إرسال الـ Hand Over", reply_markup=types.ReplyKeyboardRemove())
+        bot.send_message(CHANNEL_ID, rapport, parse_mode="Markdown")
+        bot.send_message(
+            message.chat.id,
+            "✅ *Hand Over publié avec succès dans la chaîne !* 🎉\n\nTape /handover pour un nouveau rapport.",
+            parse_mode="Markdown"
+        )
     except Exception as e:
-        bot.send_message(message.chat.id, f"⚠️ خطأ: {e}")
+        bot.send_message(
+            message.chat.id,
+            f"❌ *Erreur lors de la publication :*\n`{e}`\n\nVérifie que le bot est admin dans la chaîne.",
+            parse_mode="Markdown"
+        )
 
-    done_today[message.chat.id] = datetime.now().strftime("%Y-%m-%d")
-    user_data.pop(message.chat.id, None)
+    del sessions[uid]
 
-    main_menu(message.chat.id)
 
-# -------- CANCEL CONFIRM --------
-@bot.message_handler(func=lambda m: m.text == "❌ Cancel")
-def cancel_confirm(message):
-    user_data.pop(message.chat.id, None)
-    bot.send_message(message.chat.id, "❌ تم إلغاء العملية")
-    main_menu(message.chat.id)
-
-# -------- EDIT MENU --------
-@bot.message_handler(func=lambda m: m.text == "✏️ Edit")
-def edit_menu(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(
-        "⚙️ Equipment",
-        "⚠️ Issues",
-        "🛠️ Maintenance",
-        "📊 Remarks",
-        "🔙 Back"
-    )
-
-    bot.send_message(message.chat.id, "✏️ ماذا تريد تعديله؟", reply_markup=markup)
-
-# -------- BACK --------
-@bot.message_handler(func=lambda m: m.text == "🔙 Back")
-def back(message):
-    back_to_confirm(message)
-
-# -------- EDIT FIELDS --------
-@bot.message_handler(func=lambda m: m.text == "⚙️ Equipment")
-def edit_equipment(message):
-    bot.send_message(message.chat.id, "✏️ اكتب Equipment الجديد:")
-    bot.register_next_step_handler(message, save_equipment)
-
-def save_equipment(message):
-    user_data[message.chat.id]['equipment'] = message.text
-    back_to_confirm(message)
-
-@bot.message_handler(func=lambda m: m.text == "⚠️ Issues")
-def edit_issues(message):
-    bot.send_message(message.chat.id, "✏️ اكتب Issues الجديد:")
-    bot.register_next_step_handler(message, save_issues)
-
-def save_issues(message):
-    user_data[message.chat.id]['issues'] = message.text
-    back_to_confirm(message)
-
-@bot.message_handler(func=lambda m: m.text == "🛠️ Maintenance")
-def edit_maintenance(message):
-    bot.send_message(message.chat.id, "✏️ اكتب Maintenance الجديد:")
-    bot.register_next_step_handler(message, save_maintenance)
-
-def save_maintenance(message):
-    user_data[message.chat.id]['maintenance'] = message.text
-    back_to_confirm(message)
-
-@bot.message_handler(func=lambda m: m.text == "📊 Remarks")
-def edit_remarks(message):
-    bot.send_message(message.chat.id, "✏️ اكتب Remarks الجديد:")
-    bot.register_next_step_handler(message, save_remarks)
-
-def save_remarks(message):
-    user_data[message.chat.id]['remarks'] = message.text
-    back_to_confirm(message)
-
-# -------- BACK TO CONFIRM --------
-def back_to_confirm(message):
-    data = user_data.get(message.chat.id)
-    if not data:
-        bot.send_message(message.chat.id, "❌ لا توجد بيانات")
-        main_menu(message.chat.id)
-        return
-
-    today_full = datetime.now().strftime("%Y-%m-%d %H:%M")
-    username = f"{message.from_user.first_name or ''} {message.from_user.last_name or ''}"
-
-    report = f"""
-📢 *HANDOVER REPORT*
-
-👤 Operator: {username}
-📅 Date: {today_full}
-📍 Area: {data['area']}
-🔄 Shift: {data['shift']}
-
-━━━━━━━━━━━━━━━
-
-⚙️ *Equipment Status:*
-{data['equipment']}
-
-⚠️ *Issues:*
-{data['issues']}
-
-🛠️ *Maintenance:*
-{data['maintenance']}
-
-📊 *Remarks:*
-{data['remarks']}
-
-━━━━━━━━━━━━━━━
-"""
-
-    user_data[message.chat.id]['report'] = report
-
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("✅ Confirm", "✏️ Edit", "❌ Cancel")
-
-    bot.send_message(message.chat.id, report, parse_mode="Markdown")
-    bot.send_message(message.chat.id, "🔁 تم التحديث، تأكد:", reply_markup=markup)
-
-# -------- RUN --------
+# ══════════════════════════════════════════════════════════════
+#  LANCEMENT
+# ══════════════════════════════════════════════════════════════
+print("🤖 Bot Hand Over démarré...")
 bot.infinity_polling()
