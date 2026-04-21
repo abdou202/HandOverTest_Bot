@@ -18,7 +18,7 @@ done_today = {}   # تتبع من بعث اليوم
 
 # ── الخيارات ────────────────────────────────────────────────
 
-SHIFTS = [“🌞 Day Shift  (07h–19h)”, “🌙 Night Shift  (19h–07h)”]
+SHIFTS = ["🌞 Day Shift  (07h–19h)", "🌙 Night Shift  (19h–07h)"]
 
 AREAS  = [
 “⚙️ OT1 / Manifold compresseur d’air”,
