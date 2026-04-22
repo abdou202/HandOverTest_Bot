@@ -106,7 +106,7 @@ def get_equipment(message):
         return
 
     user_data[message.chat.id]['status'] = (
-        "Normal — No anomaly" if message.text == "✅ Normal — No anomaly" else message.text
+        message.text if message.text == "✅ Normal — No anomaly" else message.text
     )
 
     ask_maintenance(message)
@@ -125,7 +125,7 @@ def get_maintenance(message):
         return
 
     user_data[message.chat.id]['maintenance'] = (
-        "Nothing to report" if message.text == "🚫 Nothing to report" else message.text
+        message.text if message.text == "🚫 Nothing to report" else message.text
     )
 
     ask_remarks(message)
@@ -145,7 +145,7 @@ def finish(message):
         return
 
     user_data[message.chat.id]['remarks'] = (
-        "Nothing to report" if message.text == "🚫 Nothing to report" else message.text
+        message.text if message.text == "🚫 Nothing to report" else message.text
     )
 
     today_full = datetime.now().strftime("%d/%m/%Y  %H:%M")
