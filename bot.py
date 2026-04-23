@@ -4,10 +4,10 @@ from telebot import types
 from datetime import datetime
 
 # 🔑 Replace with your bot token from BotFather
-TOKEN = "8745775678:AAFF6aNr9jTMAyorKW1X3pqVpTkTD7AV7uc"
+TOKEN = "8590592140:AAFAmocTtshhcIGl5uxinTMpttOEqw5sZso"
     
     # هنا تحط ID تاع القناة
-CHANNEL_ID = "@handover_test"
+CHANNEL_ID = "@berkine_handover"
 
 AREAS = [
     "OT1 / Manifold compresseur d’air",
