@@ -82,12 +82,12 @@ def get_area(message):
     user_data[message.chat.id]['area'] = message.text
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🌞 Day Shift", "🌙 Night Shift", "❌ Cancel")
+    markup.add("☀️ Day Shift", "🌙 Night Shift", "❌ Cancel")
 
     bot.send_message(message.chat.id, "🔄 Select Shift:", reply_markup=markup)
 
 # -------- SHIFT --------
-@bot.message_handler(func=lambda m: m.text in ["🌞 Day Shift", "🌙 Night Shift"])
+@bot.message_handler(func=lambda m: m.text in ["☀️ Day Shift", "🌙 Night Shift"])
 def get_shift(message):
     user_data[message.chat.id]['shift'] = message.text
     ask_equipment(message)
