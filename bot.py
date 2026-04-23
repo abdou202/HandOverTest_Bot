@@ -49,6 +49,22 @@ def start(message):
     bot.send_message(message.chat.id, text)
     main_menu(message.chat.id)
 
+#---------help---------
+@bot.message_handler(commands=['help'])
+def help_command(message):
+    text = """
+📘 How to use the Handover Bot:
+
+1️⃣ Press Start
+2️⃣ Select Area
+3️⃣ Select Shift
+4️⃣ Fill required fields
+5️⃣ Confirm submission
+
+⚠️ One handover per day per operator
+"""
+    bot.send_message(message.chat.id, text)
+
 # -------- CANCEL --------
 @bot.message_handler(func=lambda m: m.text == "❌ Cancel")
 def cancel(message):
